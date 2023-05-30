@@ -363,16 +363,20 @@ This implies that most of the variability that the model with two fixed effects 
 
 # Predictions for new year-location combinations
 
-The above results seem to suggest that it might be quite difficult to separate3 location and year effects, and hence, when predicting for new year and location combinations, a precautionary approach might be to use both year and site as random effects in a random effects model and then propagate the uncertainty associated with the overall mean with respect to both random effects, year and site, that would be unobserved
+The above results seem to suggest that it might be quite difficult to separate location and year effects.
+
+A precautionary approach, when predicting a cue rate for new year and location combinations, might be to use both year and site as random effects in a random effects model and then propagate the uncertainty associated with the overall mean with respect to both random effects, year and site, that would be unobserved. This is implemented here:
 
 ```{r}
 crglmer<-glmer(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
 #crglmer<-glmer(crate~(1|as.factor(paste0(location+fyear)),data=tags,family=Gamma(link="log"))
 ```
 
-Under this representation, the cue rate would be estimated for any new site-year combination as `r round(exp(summary(crglmer)$coefficients[1,1]),2)` clicks per second. We note explicitly this is quite lower that the overall mean of all tags cue rates `r round(mean(tags$crate),2)` clicks per second, a consequence of the tags being considerably unbalanced across years and sites, with more tags in year-location combinations which happened to have higher cue rates. This is nonetheless closer to, as would be expected, the mean of the average cue rates per year-site combination (`r round(mean(tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=mean)),2)` clicks per second).
+Under this representation, the cue rate would be estimated, for any new site-year combination as `r round(exp(summary(crglmer)$coefficients[1,1]),2)` clicks per second. 
 
-Note that the variability on these is not so large:
+We note explicitly this is quite lower that the overall mean of all tags cue rates `r round(mean(tags$crate),2)` clicks per second, a consequence of the tags being considerably unbalanced across years and sites, with more tags in year-location combinations which happened to have higher cue rates. This is nonetheless closer to, as would be expected, the mean of the average cue rates per year-site combination (`r round(mean(tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=mean)),2)` clicks per second).
+
+Note that the variability on the observed cue rates per year-location combination is not that large:
 
 ```{r}
 crates.psycomb<-data.frame(cr=tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=mean),sy=tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=head,n=1))
@@ -382,11 +386,15 @@ ggplot(crates.psycomb,aes(x=1,y=cr),fill="lightblue")+
 #boxplot(tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=mean))
 ```
 
-To estimate the precision on this mean estimate for cue rate we would need to propagate the variability associated with the random effects into the point estimate of the intercept of the model. How can that be done?
+To estimate the precision on this mean estimate for cue rate we would need to propagate the variability associated with the random effects into the point estimate of the intercept of the model. 
 
-Bolker et al. note here under [Predictions and/or confidence (or prediction) intervals on predictions](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#predictions-andor-confidence-or-prediction-intervals-on-predictions) "none of the following approaches takes the uncertainty of the random effects parameters into account..." and suggest that "if you want to take RE parameter uncertainty into account, a Bayesian approach is probably the easiest way to do it.". Ben Bolker (BB) further provided several possible approaches as a reply to a question TAM posted on stack exchange: https://stats.stackexchange.com/questions/616697/how-to-estimate-precision-on-a-prediction-for-a-glmm-for-an-unobserved-level-of/
+How can that be done? Bolker et al. note here under [Predictions and/or confidence (or prediction) intervals on predictions](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#predictions-andor-confidence-or-prediction-intervals-on-predictions) "none of the following approaches takes the uncertainty of the random effects parameters into account..." and suggest that "if you want to take RE parameter uncertainty into account, a Bayesian approach is probably the easiest way to do it.". 
 
-describing a possible intuitive approach via a parametric bootstapp. The suggested idea would be to resample values from the distribution of the overall mean, and then add sampled values from the variability associated with each of the random effects, and compute the variability of the resulting estimates. These have been referred to in the literature as "population prediction intervals". We note in passing that BB himself seems to be unsure about how to justify this bootstrap procedure:
+Ben Bolker (BB) further provided several possible approaches as a reply to a question TAM posted on stack exchange:
+
+https://stats.stackexchange.com/questions/616697/how-to-estimate-precision-on-a-prediction-for-a-glmm-for-an-unobserved-level-of/
+
+BB describes a possible approach via an (intuitive) parametric bootstapp. The suggested idea would be to resample values from the distribution of the overall mean, and then add sampled values from the variability associated with each of the random effects, and compute the variability of the resulting estimates. These have been referred to in the literature as "population prediction intervals". We note in passing that BB notes that this bootstrap procedure might be hard to justify from a theoretical point of view:
 
 https://stats.stackexchange.com/questions/590595/justification-for-population-prediction-intervals
 
@@ -395,9 +403,9 @@ The options would be:
 1. a procedure involving the analytic estimates of the variances of the parameters
 2. a quick (non-parametric) bootstrapp procedure
 3. a full (nonparametric + parametric) bootstrapp procedure
-4. a Bayesian implementation
+4. a full Bayesian implementation
 
-Here I attempt to implement 2 and 3.
+Here I attempt to implement the options 2 and 3.
 
 In this case, the parametric bootstrapp  would be
 
@@ -421,15 +429,17 @@ Note that I did not implement the methods strictly as described by BB, instead I
 * exponentiate them, and 
 * draw Gamma samples based on those mean values
     
-but it is unclear to me why, and would love some additional insight from BB, on why:
+but it is unclear to me why, **and would love some additional insight from BB**, on why:
 
 * one would want to implement the third step, draw from a Gamma, since what we are interested is in the variation on the mean of a new year-site combination, not the variance in observations from such a site;
 
 * (this is potentially a mute point/detail, but nonetheless I would like to know) what said Gamma would be, given via `glmer` we only get the mean value of the Gamma. Where in the output of `glmer` lies the estimate for the shape parameter of the corresponding Gamma?
 
-As per the answer by BB (see also section 5.3 in Bolker 2008 https://math.mcmaster.ca/~bolker/emdbook/chap7A.pdf), while the above procedure is sensible, this approach will ignore the variability associated with the estimation of the random effects, and a "full" bootstrap approach would first randomize independent sampling units (year-location combinations? individual tags? I lean towards the former, as that encompasses the second level of variability) observations, refit the model at each iteration, sampling from the variances associated with each random effect. BUT... now I can get an estimate of the mean at each bootstrap iteration, but how do I get the variability on the random effects? At each iteration, there is none. Do I simply generate a single value for a possible mean of a year-site combination at each bootstrap resample?
+As per the answer by BB (see also section 5.3 in Bolker 2008 https://math.mcmaster.ca/~bolker/emdbook/chap7A.pdf), while the above procedure is sensible, this approach will ignore the variability associated with the estimation of the random effects, and a "full" bootstrap approach would first randomize independent sampling units (year-location combinations? individual tags? I lean towards the former, as that encompasses the second level of variability) observations, refit the model at each iteration, sampling from the variances associated with each random effect.
 
-In any case, I try to implement here the bootstrap which would account for the variability in estimating the random effects, by sampling year-location combinations
+BUT... now I can get an estimate of the mean at each bootstrap iteration, but how do I get the variability on the random effects? At each iteration, there is none. Do I simply generate a single value for a possible mean of a year-site combination at each bootstrap resample? I guess so!
+
+Therefore, in any case, I try to implement here the bootstrap which would account for the variability in estimating the random effects, by sampling year-location combinations
 
 ```{r,cache=TRUE,message=FALSE,warning=FALSE}
 #define location-year combination as a variable
