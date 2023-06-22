@@ -49,10 +49,9 @@ This document presents the code required to reproduce the figures and results in
 
 # About the data
 
-The dataset lies within `ddata1`, the single object in `data_4_article_clickrates_deep_dive.rda` that gets frontloaded below. This data was created via an internal ACCURATE document from the data that corresponds to the times of detections for each echolocation click from the focal animal detected in each tag, and those times were obtained from the DTAG raw sound files as described in the methods section of the paper. This is combined with the information for the duration of the tag records to obtain cue production rates, number of sounds per animal per unit time. For future reference, the processing of the objects considered here was done in an RMarkdown dynamic report entitled `Cue_Rates_For_Sperm_Whales.Rmd`. This document is shared as part of a separate data paper, where the times of echolocation clicks in this unique DTAG dataset, along with the DTAGs depth profiles, are shared to be used by others.
+The dataset lies within `ddata1`, the single object in `data_4_article_clickrates_deep_dive.rda` that gets frontloaded below. This data was created via an internal ACCURATE document from the data that corresponds to the times of detections for each echolocation click from the focal animal detected in each tag, and those times were obtained from the DTAG raw sound files as described in the methods section of the paper. This is combined with the information for the duration of the tag records to obtain cue production rates, number of sounds per animal per unit time. For future reference, the creation of the objects considered here was done in an RMarkdown dynamic report entitled `05_Cue_Rates_For_Sperm_Whales_per_DDC.Rmd`. This document is shared as part of a separate data paper, where the times of echolocation clicks in this unique DTAG dataset, along with the DTAGs depth profiles, are shared to be used by others.
 
-The data consists of summaries of numbers of regular echolocation clicks per deep dive cycle, for each of the sperm whale tags considered on the manuscript. Note that despite having been recorded at the deep dive cycle level, to be used in the manuscript “A sperm whale cautionary tale about estimating acoustic cue rates for deep divers”, submitted to The Journal of the Acoustical Society of America, by Marques, T. A., Marques, C. S. & and Gkikopoulou, K. C., the first step in the data pre-processing here is to pool data for each tag record, as the tag is the fundamental (and more importantly independent) sampling unit. 
-
+The data consists of summaries of numbers of regular echolocation clicks per deep dive cycle, for each of the sperm whale tags considered on the manuscript. Note that despite having been recorded at the deep dive cycle level, to be used in the manuscript “A sperm whale cautionary tale about estimating acoustic cue rates for deep divers”, submitted to The Journal of the Acoustical Society of America, by Marques, T. A., Marques, C. S. & and Gkikopoulou, K. C., the first step in the data pre-processing done below is to pool data for each tag record, as the tag is the fundamental (and more importantly independent) sampling unit. 
 
 
 # Reading the data
@@ -109,7 +108,13 @@ What might be the number of tag records required to obtain a reliable year-locat
 #note the need to remove the first count
 #corresponding to un-interesting year-location combinations
 #with 0 tags
-barplot(table(table(tags$location,tags$year))[-1])
+counts<-table(tags$location,tags$year)
+maxtags<-max(table(tags$location,tags$year))
+counts2<-numeric(maxtags)
+for (i in 1:maxtags){
+  counts2[i]<-sum(counts==i)
+}
+barplot(counts2,names.arg=1:maxtags,ylab="Number of year-location combinations",xlab="Number of tags")
 ```
 
 We can take a look at the cue rates (pooled across locations) per year
@@ -125,11 +130,11 @@ par(mar=c(8,4,0.2,0.2))
 with(tags,boxplot(crate~location,las=2,ylab="Cue rate (clicks/sec)",xlab="",cex.lab=0.8,cex.axis=0.8))
 ```
 
-We are hoping to explain variability in cue rates as a function of year and location. To do so, year-location combinations with a small number of tags are difficult to deal with. In particular, for those with a single tag, a year-location effect would be hard to estimate: with a model with an interaction, the effect would be strictly unidentifiable. We therefore removed years and locations for which only a single tag existed, effectively removing the single tag from Norway Andenes, also the only tag from 2005. Additionally, we grouped  tags from single-tag year-location combinations into an adjacent year for the same same location. Hence, we pooled
+We are hoping to explain variability in cue rates as a function of year and location. To do so, year-location combinations with a small number of tags are difficult to deal with. In particular, for those with a single tag, a year-location effect would be hard to estimate: with a model with an interaction, the effect would be strictly unidentifiable. We therefore removed years and locations for which only a single tag existed, effectively removing the single tag from Norway Andenes (which was also the single tag from 2005). Additionally, we pooled tags from single-tag year-location combinations into an adjacent year for the same same location. Hence, we pooled
 
-* the single tag from Norway in 2009 with the 3 tags from the year 2010;
-* the single tag from Dominica in 2017 with the remaining 4 tags from 2016;
-* the single tag from the Mediterranean in 2001 with the 7 tags from the year 2003.
+* the single tag from Norway in 2009 with the 3 Norway tags from 2010;
+* the single tag from Dominica in 2017 with the remaining 4 Dominica tags from 2016;
+* the single tag from the Mediterranean in 2001 with the 7 tags from Mediterranean from 2003.
 
 ```{r}
 #removing the location with a single tag
@@ -153,7 +158,7 @@ with(tags,boxplot(crate~location,las=2,ylab="Cue rate (clicks/sec)",xlab="",cex.
 
 Our objective is to obtain a cue rate estimate, and its desired precision to include in a cue counting density estimator. We assume cue rate will depend on a number of covariates, here in particular location and time.
 
-Ignoring predictions to begin with, from first principles, location might be a sensible fixed effects covariate, since different locations will present different depths and prey distributions, and hence foraging at different depths might occur, and consequently different cue rates per location (across years). On the other hand, it seems like the variability from year might be not driven by year itself, but as random fluctuations over time, perhaps more sensibly accounted for as factor (or a random effect). If one believes this to be the case, to predict cue rates for:
+Ignoring what required predictions might be to begin with, from first principles, location might be a sensible fixed effects covariate, since different locations will present different depths and prey distributions, and hence foraging at different depths might occur, and consequently different cue rates per location (across years). On the other hand, it seems like the variability from year might be not driven by year itself, but as random fluctuations over time, perhaps more sensibly accounted for as factor (or a random effect). If one believes this to be the case, to predict cue rates for:
 
 1. a sampled location and a new year, one could consider to use a model with location as a fixed effect, propagating the variability of year as a random effect;
 2. for a new location and year, one could would use a model with both location and year as random effects.
@@ -173,6 +178,8 @@ From a conceptual point of view, if we had enough data across years and location
 2. treat as random effects those covariates for which the level at which we would like to predict were not observed
 
 When considering a model with random effect(s) care must be had to propagate into predictions the variability associated with predicting for a new, previously unobserved, level of the random effect. As will be described below, this is not necessarily straightforward, and different alternatives are available to do so.
+
+Note we will not be able to separate the effect of year and location for Kaikoura, since this location was only sampled in 2013, and no other location was sampled in that year. Additionally, we cannot separate effects for years 2020 and 2021 as we only have tags from a single site (the Azores) in those years.
 
 ## Model fitting
 
@@ -200,7 +207,12 @@ CRglm4<-glm(crate~location+fyear+fyear:location,data=tags,family=Gamma(link="log
 kable(AIC(CRglm1,CRglm2,CRglm3,CRglm4))
 ```
 
-According to AIC the best model considers both location and year as factors, while the interaction between these factors is not deemed relevant. Given the nature of year and expectations as noted above for temporal effects, using year as a factor seems indeed more sensible any way.
+According to AIC the best model considers both location and year as factors, while the interaction between these factors is not deemed relevant. Given the nature of year and expectations as noted above for temporal effects, using year as a factor seems indeed more sensible any way. We can look at the summary of said model
+
+```{r}
+summary(CRglm3)
+```
+
 
 ```{r}
 #define indexes of year-location combinations we are most interested in
@@ -210,7 +222,9 @@ iDom2015<-tags$location=="DOMINICA" & tags$year==2015
 iDom2018<-tags$location=="DOMINICA" & tags$year==2018
 ```
 
-We illustrate how to estimate the cue rate, and its precision, for all year location combinations for which we have more than 3 tags. The choice of 3 is arbitrary, but we considered that 3 or less tags would be unreliable (can we perhaps look into it? given var across locations vs within locations, one might be better off MRSE-wise to estimate from other locations). We do note 
+We illustrate how to estimate the cue rate, and its precision, for all year location combinations for which we have more than 3 tags. The choice of 3 is arbitrary, but we considered that 3 or less tags would be unreliable (can we perhaps look into it? given var across locations vs within locations, one might be better off MRSE-wise to estimate from other locations). 
+
+We do note a few arbitrary combinations that might be interesting to compare:
 
 * a location and year for which we have available data. We consider here the cases for which we have the most tags, namely 
     - the Gulf of Mexico in 2002 (`r sum(iGoM2002)` tags), and 
@@ -301,7 +315,7 @@ byly$glm.uci.cr[i] <- exp(summary(CRglm4yl)$coefficients[1,1]+qt(0.975,summary(C
 }
 ```
 
-We compare below standard averages against values obtained from the glm (between the value for the estimates for each year-location combination corresponds we show the number of tags available for each year-location combination)
+We compare below standard averages against values obtained from the glm for year-site combinations with more than `r nmin` tags. In the plot, we show the number of tags available for each year-location combination between the values for the estimates for each year-location combination corresponds, to the left the empirical average, to the right, the model based estimate.
 
 ```{r}
 #standard average
@@ -317,7 +331,7 @@ axis(1, at=(1:nrow(byly))+0.2,byly$year,tick=FALSE,cex.axis=0.6,las=2,line=1)
 text(x=(1:nrow(byly)),y=byly$ecr,labels=byly$ntags,cex=0.6)
 ```
 
-What these estimates illustrate we is that point estimates are not that different from each other, with almost complete overlap in confidence intervals, except for the GoM in 2002, with slightly higher estimated cue rate. It also illustrates how a cue rate estimate drawn from a reduced number of tags could result in inadmissible estimates (the naive 95% CI for the GoM in 2001 approaches 0, while negative values for the cue rate are not possible). From that perspective, estimates from the fitted model might be better, as these will avoid negative values by construction, induced by the log link. Interestingly, estimates from the GLM model are slightly less precise for all but the most variable year-location combination, the GoM in 2001, where the strength borrowed from all the tags analysis means the model based estimate is considerably more precise.
+These estimates illustrate that point estimates are not that different from each other, with considerable overlap in confidence intervals across year site combinations, except for the GoM in 2002, with slightly higher estimated cue rate, and the Azores in 2020, with a considerably lower value. It also illustrates how a cue rate estimate drawn from a reduced number of tags could result in inadmissible estimates (the naive 95% CI for the GoM in 2001 approaches 0, while negative values for the cue rate are not possible). From that perspective, estimates from the fitted model might be better, as these will avoid negative values by construction, induced by the log link. Interestingly, estimates from the GLM model are slightly less precise for all but the most variable year-location combination, the GoM in 2001, where the strength borrowed from all the tags analysis means the model based estimate is considerably more precise.
 
 ### GLMMs
 
@@ -334,11 +348,9 @@ tags$location<-factor(tags$location,levels=c("Gulf of Mexico","DOMINICA","Azores
 crglmerGoM<-glmer(crate~location+(1|fyear),data=tags,family=Gamma(link="log"))
 ```
 
-The empirical mean cue rate across all years for the GoM is `r round(mean(tags$crate[tags$location=="Gulf of Mexico"]),2)` clicks per second and for Dominica is `r round(mean(tags$crate[tags$location=="DOMINICA"]),2)` clicks per second. On the other hand, considering the GLMM, those values are `r round(exp(summary(crglmerGoM)$coefficients[1,1]),2)` clicks per second and `r round(exp(summary(crglmerDom)$coefficients[1,1]),2)` clicks per second for the GoM and Dominica, respectively. So while the observed cue rate was larger in the GoM, it is estimated by the GLMM as being (ever if ever just) higher in Dominica. 
+The empirical mean cue rate across all years for the GoM is `r round(mean(tags$crate[tags$location=="Gulf of Mexico"]),2)` clicks per second and for Dominica is `r round(mean(tags$crate[tags$location=="DOMINICA"]),2)` clicks per second. On the other hand, considering the GLMM, those values are `r round(exp(summary(crglmerGoM)$coefficients[1,1]),2)` clicks per second and `r round(exp(summary(crglmerDom)$coefficients[1,1]),2)` clicks per second for the GoM and Dominica, respectively. So while the observed cue rate was larger in the GoM, it is estimated by the GLMM as being (ever if ever just) higher in Dominica. This implies that most of the variability that the model with two fixed effects (location and year) was attributing to changes per location are accounted for by random fluctuations in variability per year in the GLMM, and the random effect just happened to be higher for years in which the GoM was sampled (in particular 2002).
 
-This implies that most of the variability that the model with two fixed effects (location and year) was attributing to changes per location are accounted for by random fluctuations in variability per year in the GLMM, and the random effect just happened to be higher for years in which the GoM was sampled (in particular 2002).
-
-Note that we do not present here precision measures for the estimated cue rate in 2012. Obtaining the correct precision on the estimates for unobserved levels of the (year) random effect is not straighforward. We do so for a model with both year and location as random effects below.
+Note that we do not present here precision measures for the estimated cue rate in 2012. Obtaining the correct precision on the estimates for unobserved levels of the (year) random effect is not straightforward. We do so for a model with both year and location as random effects below.
 
 # Predictions for new year-location combinations
 
@@ -351,7 +363,14 @@ crglmer<-glmer(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
 #crglmer<-glmer(crate~(1|as.factor(paste0(location+fyear)),data=tags,family=Gamma(link="log"))
 ```
 
-Under this representation, the cue rate would be estimated, for any new location-year combination as `r round(exp(summary(crglmer)$coefficients[1,1]),2)` clicks per second. 
+A summary of the model is
+
+```{r}
+summary(crglmer)
+```
+
+
+Under this representation, the cue rate would be estimated, for any new location-year combination as `r round(exp(summary(crglmer)$coefficients[1,1]),2)` clicks per second.
 
 We note explicitly this is quite lower that the overall mean of all tags cue rates `r round(mean(tags$crate),2)` clicks per second, a consequence of the tags being considerably unbalanced across years and locations, with more tags in year-location combinations which happened to have higher cue rates. This is nonetheless closer to, as would be expected, the mean of the average cue rates per year-location combination (`r round(mean(tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=mean)),2)` clicks per second).
 
@@ -365,30 +384,38 @@ ggplot(crates.psycomb,aes(x=1,y=cr),fill="lightblue")+
 #boxplot(tapply(X=tags$crate,INDEX = paste0(tags$location,tags$year),FUN=mean))
 ```
 
-To estimate the precision on this mean estimate for cue rate we would need to propagate the variability associated with the random effects into the point estimate of the intercept of the model. 
+Note that, given the model above, regarding the variance associated with the random effects, the percentage of the variation associated with year is `r round(100*as.numeric(summary(crglmer)$varcor[1])/(as.numeric(summary(crglmer)$varcor[1])+as.numeric(summary(crglmer)$varcor[2])),2)` and `r round(100*as.numeric(summary(crglmer)$varcor[2])/(as.numeric(summary(crglmer)$varcor[1])+as.numeric(summary(crglmer)$varcor[2])),2)` for location. In other words, there is more variation across time than across space, at least for the samples of space and time available to us.
 
-How can that be done? Bolker et al. note here under [Predictions and/or confidence (or prediction) intervals on predictions](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#predictions-andor-confidence-or-prediction-intervals-on-predictions) "none of the following approaches takes the uncertainty of the random effects parameters into account..." and suggest that "if you want to take RE parameter uncertainty into account, a Bayesian approach is probably the easiest way to do it.". 
+## Estimating the precision of the cue rate for a new year-location combinatioon
+
+So we estimated the mean cue rate at a new site-year to be `r round(exp(summary(crglmer)$coefficients[1,1]),2)`. To estimate the precision on this mean estimate for cue rate we would need to propagate the variability associated with the random effects into the point estimate of the intercept of the model. 
+
+How can that be done? About this same question, Bolker et al. note here under their GLMM FAQ section on [Predictions and/or confidence (or prediction) intervals on predictions](https://bbolker.github.io/mixedmodels-misc/glmmFAQ.html#predictions-andor-confidence-or-prediction-intervals-on-predictions) that "none of the following approaches takes the uncertainty of the random effects parameters into account..." and suggest that "if you want to take RE parameter uncertainty into account, a Bayesian approach is probably the easiest way to do it.". 
 
 Ben Bolker (BB) further provided several possible approaches as a reply to a question TAM posted on stack exchange:
 
 https://stats.stackexchange.com/questions/616697/how-to-estimate-precision-on-a-prediction-for-a-glmm-for-an-unobserved-level-of/
 
-BB describes a possible approach via an (intuitive) parametric bootstapp. The suggested idea would be to resample values from the distribution of the overall mean, and then add sampled values from the variability associated with each of the random effects, and compute the variability of the resulting estimates. These have been referred to in the literature as "population prediction intervals". We note in passing that BB notes that this bootstrap procedure might be hard to justify from a theoretical point of view:
+BB describes a possible approach via an (intuitive) parametric bootstrap. The suggested idea would be to resample values from the distribution of the overall mean, and then add sampled values from the variability associated with each of the random effects, and compute the variability of the resulting estimates. These have been referred to in the literature as "population prediction intervals". We note in passing that BB notes that this bootstrap procedure might be hard to justify from a theoretical point of view:
 
 https://stats.stackexchange.com/questions/590595/justification-for-population-prediction-intervals
 
-The options would be:
+The 4 options listed by BB would be:
 
 1. a procedure involving the analytic estimates of the variances of the parameters
-2. a quick (parametric) bootstrapp procedure
-3. a true (parametric) bootstrapp procedure (see below I actually implemented a possibly quite weird mix of a non-parametric+parametric bootstrap)
+2. a quick (parametric) bootstrap procedure
+3. a true (parametric) bootstrap procedure (see below I actually implemented a possibly quite weird mix of a non-parametric+parametric bootstrap)
 4. a full Bayesian implementation
 
 Here I attempt to implement options 2 and 3.
 
-In this case, the quick parametric bootstrapp  would be
+### Option 2
+
+A (simple) parametric bootstrap is the fastest to implement. In this case, the quick parametric bootstrap would correspond to resampling from Gaussian distributions for the intercept as well as the year and site random effects, based on the estimated model.
 
 ```{r,parboot}
+# implementing option 2
+# 2. a quick (parametric) bootstrap procedure
 set.seed(123)
 B<-9999
 means<-rnorm(B,mean=summary(crglmer)$coefficients[1,1],sd=summary(crglmer)$coefficients[1,2])
@@ -400,7 +427,7 @@ est.lmean.crs<-means+desv.year+desv.loc
 est.mean.crs<-exp(est.lmean.crs)
 ```
 
-and now to get a confidence interval we can simply use the percentile method, leading to a mean estimate of `r round(exp(summary(crglmer)$coefficients[1,1]),2)` and 95% confidence intervals of `r round(quantile(est.mean.crs,0.025),2)`-`r round(quantile(est.mean.crs,0.975),2)`.
+This ignores variability in estimated random effects, but to get a 95% confidence interval (CI) we can simply use the percentile method, leading to a mean estimate of `r round(exp(summary(crglmer)$coefficients[1,1]),2)` and 95% confidence intervals of `r round(quantile(est.mean.crs,0.025),2)`-`r round(quantile(est.mean.crs,0.975),2)`.
 
 Note that I did not implement the methods strictly as described by BB, instead I did "almost" that, following what I had intuitively thought about originally. BB suggested the following procedure:
 
@@ -412,10 +439,15 @@ but it is unclear to me, **and would love some additional insight from BB**, why
 
 * one would want to implement the third step, draw from a Gamma, since what we are interested is in the variation on the mean of a new year-location combination, not the variance in observations from such a location;
 
-* (this is potentially a mute point/detail, but nonetheless I would like to know) what said Gamma would be, given via `glmer` we only get the mean value of the Gamma. Where in the output of `glmer` lies the estimate for the dispersion parameter of the corresponding Gamma (as happens to be reported by say a `glm` call with the argument `family=Gamma`)?
+* <a id="ilink1"></a> (this is potentially a mute point/detail, but nonetheless I would like to know) what said Gamma would be, given via `glmer` we only get the mean value of the Gamma. Where in the output of `glmer` lies the estimate for the dispersion parameter of the corresponding Gamma (as happens to be reported by say a `glm` call with the argument `family=Gamma`)? 
 
-As per the answer by BB (see also section 5.3 in Bolker 2008 https://math.mcmaster.ca/~bolker/emdbook/chap7A.pdf), while the above procedure is sensible, this approach will ignore the variability associated with the estimation of the random effects, and a "full" parametric bootstrap approach would first resample then re-fit the model.  
-I implement here below this second bootstrap, which would account for the variability in estimating the random effects, by sampling year-location combinations.
+###  Option 3
+
+#### Option 3a
+
+As per the answer by BB (see also section 5.3 in Bolker 2008 https://math.mcmaster.ca/~bolker/emdbook/chap7A.pdf), while the above procedure is sensible, this approach will ignore the variability associated with the estimation of the random effects, and a "full" parametric bootstrap approach would first resample then re-fit the model".   
+
+I implement here below this second bootstrap, which would account for the variability in estimating the random effects, by sampling year-location combinations. In hindsight, I might not have done just quite what BB was proposing, so I am coining this as option 3a.  This might actually by a weird hybrid without any theoretical justification.
 
 ```{r runboot,cache=TRUE,message=FALSE,warning=FALSE}
 #define location-year combination as a variable
@@ -435,7 +467,8 @@ for(i in 1:B){
     boot.tags<-rbind(boot.tags,tags[tags$ly==sample(lys,1),])
   }
   #fit the model
-  #NOTE: while I silence the messages, we get lots of "boundary (singular) fit: see help('isSingular')" warnings
+  # NOTE: while I silence the warning messages for the output of compiling the .Rmd
+  # we get lots of "boundary (singular) fit: see help('isSingular')" warnings
   crglmer.boot<-glmer(crate~(1|location)+(1|fyear),data=boot.tags,family=Gamma(link="log"))
   means.b<-rnorm(1,mean=summary(crglmer.boot)$coefficients[1,1],sd=summary(crglmer.boot)$coefficients[1,2])
   desv.year.b<-rnorm(1,mean=0,sd=sqrt(as.numeric(summary(crglmer.boot)$varcor[1])))
@@ -447,7 +480,7 @@ for(i in 1:B){
 }
 ```
 
-and now to get a confidence interval we can again use the percentile method, leading to a 95% confidence interval of `r round(quantile(res.boot,0.025),2)`-`r round(quantile(res.boot,0.975),2)`. As expected, the 95% CI are, even if just ever so slightly, wider than when ignoring the component of variation due to the random effects estimation. We can see that overlaid with the point and interval estimates presented before:
+As before, we can obtain a 95% CI using the percentile method: `r round(quantile(res.boot,0.025),2)`-`r round(quantile(res.boot,0.975),2)`. As expected, this 95% CI is, even if just ever so slightly, wider than when ignoring the component of variation due to the random effects estimation. We can see that overlaid with the point and interval estimates presented before:
 
 ```{r, plotall}
 #standard average
@@ -471,30 +504,96 @@ abline(h=quantile(res.boot,probs=c(0.025,0.975)),col=4,lty=2)
 legend("topright",legend=c("Estimated cue rate","95% CI ignoring RE var","95% CI including RE var"),lty=2,col=c(1,3,4),inset=0.05)
 ```
 
-This result is quite interesting. As expected, if predicting for a new location-year not yet observed, we include within the confidence interval all but one of the cue rate point estimates obtained empirically for observed year-location combinations. The fact that we do not include the Gulf of Mexico in the year 2002, one of the year locations with the largest number of tags (`r byly$ntags[byly$location=="Gulf of Mexico" & byly$year==2002]` tags) suggests that this year-location combination the cue rates were exceptionally high. The cause for that remains unresolved (sex info available? must check).
+This result is quite interesting. As expected, if predicting for a new location-year not yet observed, we include within the confidence interval all but one of the cue rate point estimates obtained empirically for observed year-location combinations. The fact that we do not include the Gulf of Mexico in the year 2002, one of the year locations with the largest number of tags (`r byly$ntags[byly$location=="Gulf of Mexico" & byly$year==2002]` tags) suggests that this year-location combination the cue rates were exceptionally high. The cause for that remains unresolved (**is sex info available? must check**).
 
-# Notes
+#### Option 3b
 
-Some notes added on 8th June 2023, for BB benefit and for future reference. I’ve noticed that I might have mis-implemented your suggestions in (at least) two ways (above and beyond the “almost” bit I had already noted)
+##### Notes on option 3
 
-1. I now realize I got sidetracked and instead of what BB refers to as full parametric bootstrap, I actually created a mix of non-parametric with parametric bootstrap: first randomize independent sampling units (year-location combinations? individual tags? I lean towards the former, as that encompasses the second level of variability) observations, re-fit the model at each iteration, sampling from the variances associated with each random effect. **Note: While I can get an estimate of the mean at each bootstrap iteration, how do I get the variability on the random effects? At each iteration, there is none. Do I simply generate a single value for a possible mean of a year-location combination at each bootstrap resample? I guess so! (though this seems, intuitively, quite computationally ineffective). This question is actually hinting me that this is not what I am suipposed to be doing!!**
+Some notes added on 8th June 2023, for BB benefit and for future reference. I’ve noticed that I might have mis-implemented BB's suggestions in (at least) two ways (above and beyond the “almost” bit I had already noted)
+
+1. I now realize I got sidetracked and instead of what BB refers to as full parametric bootstrap, I actually created a mix of non-parametric with parametric bootstrap: first randomize independent sampling units (year-location combinations? individual tags? I lean towards the former, as that encompasses the second level of variability) observations, re-fit the model at each iteration, sampling from the variances associated with each random effect. **Note: While I can get an estimate of the mean at each bootstrap iteration, how do I get the variability on the random effects? At each iteration, there is none. Do I simply generate a single value for a possible mean of a year-location combination at each bootstrap resample? I guess so! (though this seems, intuitively, quite computationally ineffective). This question is actually hinting me that this is not what I am supposed to be doing!!**
 2. For option #3, I might have ignored BB's comment “including the RE variance but not the FE sampling variance” since I sampled from the intercept distribution as well as for the random effects at each bootstrap resample (to be consistent with what I had done in option #2)
 
-For option #3, regarding the non-parametric bootstrap, I actually resampled data from year-location combinations, not really year and location independently. The latter would mean one would end up with non-existing year-location combinations. However, said resampling scheme would be more consistent with a model where year-location combo was a single random effect. The downside of doing it that way from the start is that we loose the ability to evaluate what is most important in explaining the variability, year or location.
+For option #3, regarding the non-parametric bootstrap, I actually resampled data from year-location combinations, not really year and location independently. The latter would mean one would end up with non-existing year-location combinations. However, said resampling scheme would be more consistent with a model where year-location combo was a single random effect. The downside of doing the modelling that way from the start is that we loose the ability to evaluate what is most important in explaining the variability in cue rates, year or location (here, as we saw above, most variability seems to come from year).
 
-The main question remains. What is the full parametric procedure that BB suggested? How does one resample before re-fitting? What do I resample? Does that actually mean simulate new data, so say at each iteration
+The main question remains. What is the full parametric procedure that BB suggested? How does one resample before re-fitting? What do I resample? Does that actually mean simulate new data, given the model, i.e.
 
-1. simulate data from the fitted model, that is, for each original data point
+1. simulate data from the fitted model, that is, for each original data point (i.e. each tag)
     - simulate a draw for the estimated intercept (`int`)
     - add a draw from the estimated corresponding year value of the RE (`rey`)
     - add a draw from the estimated corresponding location value of the RE  (`rel`)
-    - draw a Gamma observation with a mean given by the `int+rey+rel`
+    - draw a Gamma observation with a mean given by the `int+rey+rel` (but which variance? [see comment above](#ilink1))
 2. re-estimate the fitted model based on the simulated data
 3. get the intercept value
 
-The variance on these intercepts is the variance one wants, which accounts for variability in the random effect estimation.
+The variance on these intercepts is then the variance one wants, which accounts for variability in the random effect estimation. **Nope, this can't be right. That is the variance on the overall mean, not the variance on the value of the mean of a possible new location-time combination.**
 
-This seems circular to me, but maybe that is what one is supposed to do?
+This resampling procedure seems somewhat circular to me, but that might be what one is actually supposed to do.
+
+Actually, we can easily simulate new data from this model via function `simulate`. Unfortunately, the simulated data looks nothing like the real data, having considerable higher variability than the original data
+
+```{r}
+par(mfrow=c(2,2),mar=c(4,4,2,0.2))
+hist(simulate(crglmer)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(simulate(crglmer)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(simulate(crglmer)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(tags$crate,main="Observed data",xlab="Cue rate (clicks/second)")
+```
+
+What does this tell us about the adequacy of the model? It implies that the GOF is lousy... 
+
+##### Implementing option 3b
+
+This stuff below is currently not being implemented given a weird fact I ma looking into. 
+
+We have `r nrow(tags)` tags in the object `tags`, fit a model to this same object `tags`, and yet the model summary reports only `r `length(residuals(crglmer))` observations? How come we loose 3 observation in this process? Such a weird thing...?
+
+```{r,boot3b,eval=FALSE}
+B<-9999
+res.boot.3b<-numeric(B)
+boot.tags<-tags
+for (i in 1:B){
+  #get simulated data
+  boot.tags$crate<-simulate(crglmer)$sim_1
+  #fit model
+  crglmer.boot<-glmer(crate~(1|location)+(1|fyear),data=boot.tags,family=Gamma(link="log"))
+  means.b<-rnorm(1,mean=summary(crglmer.boot)$coefficients[1,1],sd=summary(crglmer.boot)$coefficients[1,2])
+  desv.year.b<-rnorm(1,mean=0,sd=sqrt(as.numeric(summary(crglmer.boot)$varcor[1])))
+  desv.loc.b<-rnorm(1,mean=0,sd=sqrt(as.numeric(summary(crglmer.boot)$varcor[2])))
+  #estimates at a new year location combination, on the link scale
+  est.lmean.crs.b<-means.b+desv.year.b+desv.loc.b
+  #estimates on the scale of the response
+  res.boot.3b[i]<-exp(est.lmean.crs.b)
+}
+#As before, we can obtain a 95% CI using the percentile method: `r round(quantile(res.boot.3b,0.025),2)`-`r round(quantile(res.boot.3b,0.975),2)`. 
+
+```
+
+
+```{r, plotall2,eval=FALSE}
+#standard average
+par(mfrow=c(1,1),mar=c(6,4,0.1,0.4))
+plot(x=(1:nrow(byly))-0.2,y=byly$ecr,xaxt="n",ylim=c(0,2),xlim=c(0.5,nrow(byly)+0.5),xlab="",ylab="cue rate (clicks per second)")
+with(byly,segments(x0=(1:nrow(byly))-0.2,x1=(1:nrow(byly))-0.2,y0=lcl.ecr,y1=ucl.ecr))
+#GLM
+points(x=(1:nrow(byly))+0.2,y=byly$glm.cr)
+with(byly,segments(x0=(1:nrow(byly))+0.2,x1=(1:nrow(byly))+0.2,y0=glm.lci.cr,y1=glm.uci.cr))
+#draw axis and annotations
+axis(1, at=(1:nrow(byly))-0.2,byly$location,cex.axis=0.6,las=2)
+axis(1, at=(1:nrow(byly))+0.2,byly$year,tick=FALSE,cex.axis=0.6,las=2,line=1)
+text(x=(1:nrow(byly)),y=byly$ecr,labels=byly$ntags,cex=0.6)
+
+#the estimated mean cue rate from GLMER
+abline(h=exp(summary(crglmer)$coefficients[1,1]),lty=2)
+#adding a new year location combination - 95% CI that ignore RE estimation variability
+abline(h=quantile(est.mean.crs,probs=c(0.025,0.975)),col=3,lty=2)
+#adding a new year location combination - 95% CI accounting for said variability a la option 3a 
+abline(h=quantile(res.boot,probs=c(0.025,0.975)),col=4,lty=2)
+#adding a new year location combination - 95% CI accounting for said variability a la option 3a 
+abline(h=quantile(res.boot.3b,probs=c(0.025,0.975)),col=5,lty=2)
+legend("topright",legend=c("Estimated cue rate","95% CI ignoring RE var","95% CI including RE var 3a","95% CI ignoring RE var","95% CI including RE var 3b"),lty=2,col=c(1,3,4,5),inset=0.05)
+```
 
 # Aknowledgements
 
