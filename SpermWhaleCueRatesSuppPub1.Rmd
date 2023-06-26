@@ -240,7 +240,7 @@ all.comb<-expand.grid(location=sort(unique(tags$location)),year=sort(unique(tags
 # define minimum number of tags required to produce an estimate
 nmin<-3
 # select only those
-index.min<-which(table(tags$location,tags$year)>3)
+index.min<-which(table(tags$location,tags$year)>nmin)
 # create an object to hold results by location-year
 byly <- all.comb[index.min,]
 
@@ -288,9 +288,14 @@ The point estimates and respective 95% confidence intervals using a standard ave
 * Dominica in 2015 (`r sum(iDom2015)` tags): `r round(mean.cr.Dom2015,2)` (`r round(mean.cr.Dom2015-margin.cr.Dom2015,2)`-`r round(mean.cr.Dom2015+margin.cr.Dom2015,2)`)
 * Dominica in 2018 (`r sum(iDom2018)` tags): `r round(mean.cr.Dom2018,2)` (`r round(mean.cr.Dom2018-margin.cr.Dom2018,2)`-`r round(mean.cr.Dom2018+margin.cr.Dom2018,2)`)
 
-If we consider a GLM model with both year and location as fixed effects, the point estimates and respective 95% confidence intervals are easiest to obtain by recoding the year and location factors to have the desired levels of each factor as the intercept, and then exponentiating back to the linear scale (for confidence intervals, we create these on the link scale and then transform back to the response scale the interval limits).
+If we consider a GLM model with both year and location as fixed effects, the point estimates and respective 95% confidence intervals are easiest to obtain by recoding the year and location factors to have the desired levels of each factor as the intercept, and then exponentiating back to the linear scale (for confidence intervals, we create these on the link scale and then transform back the interval limits to the response scale).
 
 ```{r}
+nmin<-1
+# select only those
+index.min<-which(table(tags$location,tags$year)>nmin)
+# create an object to hold all possible location-year's independent of the nomber of tags (1 is enough to be in)
+byly.all <- all.comb[index.min,]
 #now, for each combination
 for(i in 1:nrow(byly)){
   index <- tags$location==byly$location[i] & tags$year==byly$year[i]
@@ -298,22 +303,23 @@ for(i in 1:nrow(byly)){
   # define the current year as baseline
   iyear <- which(byly$year==byly$year[i])
   #new levels
-  levelsy<-c(byly$year[i],unique(byly$year[byly$year!=byly$year[i]]))
+  levelsy<-c(byly$year[i],unique(byly.all$year[byly.all$year!=byly$year[i]]))
   #recode levels for year
   tags$fyear<-factor(tags$fyear,levels=levelsy)
   # define the current location as baseline
   ilocation <- which(byly$location==byly$location[i])
   #new levels
-  levelsl<-c(byly$location[i],unique(byly$location[byly$location!=byly$location[i]]))
+  levelsl<-c(byly$location[i],unique(byly.all$location[byly.all$location!=byly$location[i]]))
   tags$location<-factor(tags$location,levels=levelsl)
   #fit the model for the current year and location as baseline
   CRglm4yl<-glm(crate~location+fyear,data=tags,family=Gamma(link="log"))
   # get the cue rate
   byly$glm.cr[i] <- exp(summary(CRglm4yl)$coefficients[1,1])
   byly$glm.lci.cr[i] <- exp(summary(CRglm4yl)$coefficients[1,1]-qt(0.975,summary(CRglm4yl)$df.residual)*summary(CRglm4yl)$coefficients[1,2])
-byly$glm.uci.cr[i] <- exp(summary(CRglm4yl)$coefficients[1,1]+qt(0.975,summary(CRglm4yl)$df.residual)*summary(CRglm4yl)$coefficients[1,2])
+  byly$glm.uci.cr[i] <- exp(summary(CRglm4yl)$coefficients[1,1]+qt(0.975,summary(CRglm4yl)$df.residual)*summary(CRglm4yl)$coefficients[1,2])
 }
 ```
+
 
 We compare below standard averages against values obtained from the glm for year-site combinations with more than `r nmin` tags. In the plot, we show the number of tags available for each year-location combination between the values for the estimates for each year-location combination corresponds, to the left the empirical average, to the right, the model based estimate.
 
@@ -360,6 +366,7 @@ A precautionary approach, when predicting a cue rate for new year and location c
 
 ```{r,runglmer}
 crglmer<-glmer(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
+# a model not separating the effect of year nor location
 #crglmer<-glmer(crate~(1|as.factor(paste0(location+fyear)),data=tags,family=Gamma(link="log"))
 ```
 
@@ -531,7 +538,7 @@ The variance on these intercepts is then the variance one wants, which accounts 
 
 This resampling procedure seems somewhat circular to me, but that might be what one is actually supposed to do.
 
-Actually, we can easily simulate new data from this model via function `simulate`. Unfortunately, the simulated data looks nothing like the real data, having considerable higher variability than the original data
+Actually, we can easily simulate new data from this model via function `simulate`. Unfortunately, the simulated data looks nothing like the real data, having considerable higher variability than the original data <a id="ilink2"></a> 
 
 ```{r}
 par(mfrow=c(2,2),mar=c(4,4,2,0.2))
@@ -543,13 +550,43 @@ hist(tags$crate,main="Observed data",xlab="Cue rate (clicks/second)")
 
 What does this tell us about the adequacy of the model? It implies that the GOF is lousy... 
 
+```{r}
+par(mfrow=c(2,2),mar=c(4,4,2,0.2))
+hist(simulate(CRglm3)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(simulate(CRglm3)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(simulate(CRglm3)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(tags$crate,main="Observed data",xlab="Cue rate (clicks/second)")
+```
+
+Or is it `simulate` just making gibberish? If one considers the model with year and location as fixed effects, `CRglm3` above, the simulated data via `simulate` looks much more like the real data, so maybe the issue is with the way `simulate` simulates from a random effects model?
+
+Just realized that there is a function called `simulate.merMod` that simulates from these models, and then even `bootMer` to resample and refit. I tried that while specifying the random effect structure,  but unfortunately, I get about the same strange results where simulated values from the model are not consistent with the data. The fact that when I simulate from a fixed effects model the simulated data is consistent with the observed data is confusing me.
+
+From the help on `simulate.merMod` we see that
+
+* `re.form`	: formula for random effects to condition on. If `NULL`, condition on all random effects; if `NA` or `~0`, condition on no random effects. See Details.
+
+* The re.form argument allows the user to specify how the random effects are incorporated in the simulation. 
+    - All of the random effects terms included in `re.form` will be conditioned on - that is, the conditional modes of those random effects will be included in the deterministic part of the simulation. 
+    - (If new levels are used (and `allow.new.levels` is TRUE), the conditional modes for these levels will be set to the population mode, i.e. values of zero will be used for the random effects.) 
+    - Conversely, the random effect terms that are not included in `re.form` will be simulated from - that is, new values will be chosen for each group based on the estimated random-effects variances.
+
+
+I actual tried all the options explicitly, `re.form=NULL`, `re.form=NA`, `re.form=0` and `re.form=~(1|location)+(1|fyear)`, but could not manage to get simulated data that looks like the observed data from any of these options. Unrelated but still quite strange, the code with with anything but the default option of not explicitly specifying the argument `re.form` does not run in the .Rmd, even though it does run in the command line.
+
+```{r}
+par(mfrow=c(2,2),mar=c(4,4,2,0.2))
+hist(simulate(crglmer)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(simulate(crglmer)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(simulate(crglmer)$sim_1,main="Simulated data from the model",xlab="Cue rate (clicks/second)")
+hist(tags$crate,main="Observed data",xlab="Cue rate (clicks/second)")
+```
+
 ##### Implementing option 3b
 
-This stuff below is currently not being implemented given a weird fact I ma looking into. 
+The results below make no sense, and this might be due to the way `simulate` is working, in particular given that if we `simulate` from a model with year and location as random effects, the data looks consistent with the real data, but if we `simulate` from the random effects model, it does not.
 
-We have `r nrow(tags)` tags in the object `tags`, fit a model to this same object `tags`, and yet the model summary reports only `r `length(residuals(crglmer))` observations? How come we loose 3 observation in this process? Such a weird thing...?
-
-```{r,boot3b,eval=FALSE}
+```{r,boot3b,cache=TRUE}
 B<-9999
 res.boot.3b<-numeric(B)
 boot.tags<-tags
@@ -571,7 +608,7 @@ for (i in 1:B){
 ```
 
 
-```{r, plotall2,eval=FALSE}
+```{r, plotall2}
 #standard average
 par(mfrow=c(1,1),mar=c(6,4,0.1,0.4))
 plot(x=(1:nrow(byly))-0.2,y=byly$ecr,xaxt="n",ylim=c(0,2),xlim=c(0.5,nrow(byly)+0.5),xlab="",ylab="cue rate (clicks per second)")
@@ -590,9 +627,33 @@ abline(h=exp(summary(crglmer)$coefficients[1,1]),lty=2)
 abline(h=quantile(est.mean.crs,probs=c(0.025,0.975)),col=3,lty=2)
 #adding a new year location combination - 95% CI accounting for said variability a la option 3a 
 abline(h=quantile(res.boot,probs=c(0.025,0.975)),col=4,lty=2)
-#adding a new year location combination - 95% CI accounting for said variability a la option 3a 
+#adding a new year location combination - 95% CI accounting for said variability a la option 3b
 abline(h=quantile(res.boot.3b,probs=c(0.025,0.975)),col=5,lty=2)
 legend("topright",legend=c("Estimated cue rate","95% CI ignoring RE var","95% CI including RE var 3a","95% CI ignoring RE var","95% CI including RE var 3b"),lty=2,col=c(1,3,4,5),inset=0.05)
+```
+
+The confidence intervals make no sense. But then again, variances of the random effects are being routinely estimated to be 0... ?
+
+As per the images below, the data simulated looks nothing like the observed data. While this was already hinted for in the histograms [above](#ilink2), but I was hopeful the "mean" values in each year-location combination would be somehow retrieved back - this seems not to be the case at all. If one looks at the values of the variances associated with the random effects and the value of the residual variance (but recall we are not sure this is a variance or the dispersion parameter) this might not be that surprising. These imply that much more variability (about an order of magnitude higher) remains unexplained by the residuals than that that is explained by the random effects. Where does this leave us?
+
+```{r,playground}
+par(mfrow=c(2,2))
+with(tags,boxplot(crate~year,ylab="Cue rate (clicks/sec)",xlab="",cex.lab=0.8,cex.axis=0.8))
+with(boot.tags,boxplot(crate~year,ylab="Cue rate (clicks/sec)",xlab="",cex.lab=0.8,cex.axis=0.8))
+par(mar=c(8,4,0.2,0.2))
+with(tags,boxplot(crate~location,las=2,ylab="Cue rate (clicks/sec)",xlab="",cex.lab=0.8,cex.axis=0.8))
+with(boot.tags,boxplot(crate~location,las=2,ylab="Cue rate (clicks/sec)",xlab="",cex.lab=0.8,cex.axis=0.8))
+```
+
+```{r,playground2}
+par(mfrow=c(1,2))
+means.data.loc<-with(tags,tapply(X=crate,INDEX=location,FUN=mean))
+means.boot.loc<-with(boot.tags,tapply(X=crate,INDEX=location,FUN=mean))
+plot(means.data.loc,means.boot.loc)
+
+means.data.y<-with(tags,tapply(X=crate,INDEX=year,FUN=mean))
+means.boot.y<-with(boot.tags,tapply(X=crate,INDEX=year,FUN=mean))
+plot(means.data.y,means.boot.y)
 ```
 
 # Aknowledgements
