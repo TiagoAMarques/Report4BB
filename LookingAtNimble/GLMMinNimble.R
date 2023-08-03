@@ -51,32 +51,27 @@ GLMMcode <- nimbleCode({
   # the overall intercept
   beta0 ~ dnorm(0,sd=10)
   # random effect standard deviation associated with location, a uniform, might change this to be something else latter
-  sigmal_RE ~ dunif(0, 1)
+  sigmal_RE ~ dunif(0, 2)
   # random effect standard deviation associated with year, a uniform, might change this to be something else latter
-  sigmay_RE ~ dunif(0, 1)
-  # the gamma dispersion/variance parameter, a uniform, might change this to be a gamma latter
+  sigmay_RE ~ dunif(0, 2)
+  # the gamma dispersion (or variance - see commented parametrization 1) parameter, a uniform, might change this to be something else latter
   #dispersion ~ dunif(0, 10)
-  disp ~ dunif(0, 100)
+  disp ~ dunif(0, 10)
   #get year random effects
   for(yy in 1:nyears){
     #REy[yy] ~ dnorm(0, sd = sigmay_RE)
-    # Using decentered parametrization, a suggestion by Ben Augustine
     REy[yy] ~ dnorm(0, sd = 1)
   }  
   #get location random effects
   for(ll in 1:nlocs){
     #REl[ll] ~ dnorm(0, sd = sigmal_RE)
-    # Using decentered parametrization, a suggestion by Ben Augustine
     REl[ll] ~ dnorm(0, sd = 1)
   }  
   for (i in 1:N){
     #get the linear predictor, consider a log link function
     #log(mean[i]) <- beta0 + REy[year[i]] + REl[loc[i]]
-    # Using decentered parametrization, a suggestion by Ben Augustine
+    # now Using decentered parametrization, a suggestion by Ben Augustine
     log(mean[i]) <- beta0 + REy[year[i]]*sigmay_RE + REl[loc[i]]*sigmal_RE
-    # In bugs the parameterization  of the gamma is done using the shape and the rate
-    # via mean and variance, defined as below:
-    # note parametrized this way dispersion=variance! 
     #parametrization 1
     # crate[i] ~ dgamma(shape=(mean[i]^2)/disp,scale=disp/mean[i])
     #parametrization 2
@@ -160,22 +155,30 @@ par(mfrow=c(2,2))
 hist(test$samples[,20],pch=".",xlab="intecept",main="")
 #the intercept from glmer
 abline(v=summary(crglmer)$coeff[1,1],col="red")
-abline(v=quantile(test$samples[,20],probs=c(0.025,0.5,0.975)),col="green",lty=2)
+abline(v=quantile(test$samples[,20],probs=c(0.025,0.5,0.975)),col=c("green","orange","green"),lty=2,lwd=2)
 abline(v=mean(test$samples[,20]),col="blue",lty=2)
-#posterior plot dispersion
-hist(test$samples[,133],pch=".",xlab="dispersion",main="")
-#the variance in glmer (I suspect that is the dispersion, waiting for BB to confirm)
-abline(v=summary(crglmer)$sigma^2,col="red")
-abline(v=quantile(test$samples[,133],probs=c(0.025,0.5,0.975)),col="green",lty=2)
-abline(v=mean(test$samples[,133]),col="blue",lty=2)
+#posterior plot intercept response scale
+hist(exp(test$samples[,20]),pch=".",xlab="overall mean (i.e. intercept in response scale)",main="")
+#the intercept from glmer
+abline(v=exp(summary(crglmer)$coeff[1,1]),col="red")
+abline(v=quantile(exp(test$samples[,20]),probs=c(0.025,0.5,0.975)),col=c("green","orange","green"),lty=2,lwd=2)
+abline(v=mean(exp(test$samples[,20])),col="blue",lty=2)
+# #posterior plot dispersion
+# hist(test$samples[,133],pch=".",xlab="dispersion",main="please ignore this plot (only used in another parametrization)")
+# #the variance in glmer (I suspect that is the dispersion, waiting for BB to confirm)
+# abline(v=summary(crglmer)$sigma^2,col="red")
+# abline(v=quantile(test$samples[,133],probs=c(0.025,0.5,0.975)),col=c("green","orange","green"),lty=2,lwd=2)
+# abline(v=mean(test$samples[,133]),col="blue",lty=2)
 #posterior plot location random effect standard deviation
 hist(test$samples[,134],pch=".",xlab="location random effect sigma",main="")
 abline(v=sqrt(as.numeric(summary(crglmer)$varcor))[1],col="red")
-abline(v=quantile(test$samples[,134],probs=c(0.025,0.5,0.975)),col="green",lty=2)
+abline(v=quantile(test$samples[,134],probs=c(0.025,0.5,0.975)),col=c("green","orange","green"),lty=2,lwd=2)
 abline(v=mean(test$samples[,134]),col="blue",lty=2)
 #posterior plot year random effect standard deviation
 hist(test$samples[,135],pch=".",xlab="year random effect sigma",main="")
 abline(v=sqrt(as.numeric(summary(crglmer)$varcor))[2],col="red")
-abline(v=quantile(test$samples[,135],probs=c(0.025,0.5,0.975)),col="green",lty=2)
+abline(v=quantile(test$samples[,135],probs=c(0.025,0.5,0.975)),col=c("green","orange","green"),lty=2,lwd=2)
 abline(v=mean(test$samples[,135]),col="blue",lty=2)
+legend("topright",legend=c("0.025 posterior quantile","posterior median","posterior mean","0.975 posterior quantile","glmer estimate"),
+inset=0.05,lwd=2,col=c("green","orange","blue","green","red"),lty=c(2,2,2,2,1))
 
