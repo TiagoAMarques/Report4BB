@@ -48,7 +48,7 @@ testGLM<-nimbleMCMC(myGLMModel,monitors=tomon,niter=50000,nburnin=10000,progress
 #trace plots to cehck convergence
 par(mfrow=c(1,2))
 #trace plot intercept
-plot(testGLM$samples[,1],pch=".",ylab="intecept")
+plot(testGLM$samples[,1],pch=".",ylab="intercept")
 #trace plot dispersion
 plot(test$samples[,2],pch=".",ylab="dispersion")
 
@@ -76,10 +76,6 @@ abline(v=gamma.dispersion(glm1),col="red")
 abline(v=quantile(testGLM$samples[,114],probs=c(0.025,0.5,0.975)),col="green",lty=2)
 abline(v=mean(testGLM$samples[,114]),col="blue",lty=2)
 
-# the comparison for the glm results looks better 
-# (in the sense of things look more alike) than that
-# of the gamma glmm but not as good as the LMM 
-# there are still some inconsistencies standard deviation
-# but then again unclear to me how we actually relate the
-# standard deviation / dispersion parameter from the GLM 
-# with the "variance" in the Nimble implementation
+# the comparison for the Gamma glm results looks much better 
+# (in the sense of things look more alike to the glm results) 
+# than that of the Gamma glmm 
