@@ -52,8 +52,12 @@ GLMMcode <- nimbleCode({
   beta0 ~ dnorm(0,sd=10)
   # random effect standard deviation associated with location, a uniform, might change this to be something else latter
   sigmal_RE ~ dunif(0, 2)
+  # prior from off--nimble-list suggestion by Luca
+  # log(sigmal_RE) ~ dunif(log(0.0001), log(2))
   # random effect standard deviation associated with year, a uniform, might change this to be something else latter
   sigmay_RE ~ dunif(0, 2)
+  # prior from off--nimble-list suggestion by Luca
+  # log(sigmay_RE) ~ dunif(log(0.0001), log(2))
   # the gamma dispersion (or variance - see commented parametrization 1) parameter, a uniform, might change this to be something else latter
   #dispersion ~ dunif(0, 10)
   disp ~ dunif(0, 10)
@@ -182,3 +186,13 @@ abline(v=mean(test$samples[,135]),col="blue",lty=2)
 legend("topright",legend=c("0.025 posterior quantile","posterior median","posterior mean","0.975 posterior quantile","glmer estimate"),
 inset=0.05,lwd=2,col=c("green","orange","blue","green","red"),lty=c(2,2,2,2,1))
 
+#the 3 priors on the random effects sigma
+n<-100000
+par(mfrow=c(3,2))
+hist(runif(n,0,2),main="sigmal_RE) ~ dunif(0, 2)")
+hist(exp(runif(n,log(0.03), log(2))),main="log(sigmal_RE) ~ dunif(log(0.03), log(2))")
+hist(exp(runif(n,log(0.01), log(2))),main="log(sigmal_RE) ~ dunif(log(0.01), log(2))")
+hist(exp(runif(n,log(0.0001), log(2))),main="log(sigmal_RE) ~ dunif(log(0.0001), log(2))")
+par(mfrow=c(1,1))
+hist(exp(runif(n,log(0.000001), log(2))),main="log(sigmal_RE) ~ dunif(log(0.0001), log(2))")
+     

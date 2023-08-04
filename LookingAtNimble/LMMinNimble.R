@@ -2,8 +2,8 @@
 # using the data
 
 #for comparizon with a lmer model
-glm1<-lmer(formula=crate~1+(1|location)+(1|fyear),data=tags)
-summary(glm1)
+lmm1<-lmer(formula=crate~1+(1|location)+(1|fyear),data=tags)
+summary(lmm1)
 
 
 ## define the model
@@ -91,23 +91,23 @@ par(mfrow=c(2,2))
 # posterior plot intercept
 hist(testLMM$samples[,20],pch=".",xlab="intercept",main="")
 #the intercept from glmer
-abline(v=summary(lmer1)$coeff[1,1],col="red")
+abline(v=summary(lmm1)$coeff[1,1],col="red")
 abline(v=quantile(testLMM$samples[,20],probs=c(0.025,0.5,0.975)),col="green",lty=2)
 abline(v=mean(testLMM$samples[,20]),col="blue",lty=2)
 # posterior plot residual error
 hist(testLMM$samples[,133],pch=".",xlab="residual error",main="")
 #the variance in glmer (I suspect that is the dispersion, waiting for BB to confirm)
-abline(v=summary(lmer1)$sigma,col="red")
+abline(v=summary(lmm1)$sigma,col="red")
 abline(v=quantile(testLMM$samples[,133],probs=c(0.025,0.5,0.975)),col="green",lty=2)
 abline(v=mean(testLMM$samples[,133]),col="blue",lty=2)
 # posterior plot year random effect standard deviation
 hist(testLMM$samples[,134],pch=".",xlab="location random effect sigma",main="")
-abline(v=sqrt(as.numeric(summary(lmer1)$varcor))[2],col="red")
+abline(v=sqrt(as.numeric(summary(lmm1)$varcor))[2],col="red")
 abline(v=quantile(testLMM$samples[,134],probs=c(0.025,0.5,0.975)),col="green",lty=2)
 abline(v=mean(testLMM$samples[,134]),col="blue",lty=2)
 # posterior plot location random effect standard deviation
 hist(testLMM$samples[,135],pch=".",xlab="year random effect sigma",main="")
-abline(v=sqrt(as.numeric(summary(lmer1)$varcor))[1],col="red")
+abline(v=sqrt(as.numeric(summary(lmm1)$varcor))[1],col="red")
 abline(v=quantile(testLMM$samples[,135],probs=c(0.025,0.5,0.975)),col="green",lty=2)
 abline(v=mean(testLMM$samples[,135]),col="blue",lty=2)
 
