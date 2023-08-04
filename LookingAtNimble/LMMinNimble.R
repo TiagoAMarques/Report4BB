@@ -11,11 +11,11 @@ LMMcode <- nimbleCode({
   # the overall intercept
   beta0 ~ dnorm(0,sd=10)
   # random effect standard deviation associated with location, a uniform, might change this to be a gamma latter
-  sigmal_RE ~ dunif(0, 2)
+  sigmal_RE ~ dunif(0, 1)
   # random effect standard deviation associated with year, a uniform, might change this to be a gamma latter
-  sigmay_RE ~ dunif(0, 2)
+  sigmay_RE ~ dunif(0, 1)
   # the residual error standard deviation
-  errorsd ~ dunif(0, 100)
+  errorsd ~ dunif(0, 10)
   #get year random effects
   for(yy in 1:nyears){
     #REy[yy] ~ dnorm(0, sd = sigmay_RE)

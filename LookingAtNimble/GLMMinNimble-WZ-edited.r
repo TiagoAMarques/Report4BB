@@ -1,3 +1,6 @@
+# Code edited by Wei Zhang - sent to TAM via gmail on the 4th August 2023
+
+
 #for GLMMs
 library(lme4)
 #trying NIMBLE for Bayesian implementation
@@ -45,44 +48,43 @@ crglmerGoM<-glmer(crate~location+(1|fyear),data=tags,family=Gamma(link="log"))
 # the lme4 equivalent of what we will do below in NIMBLE
 crglmer<-glmer(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
 
+# Use glmmTMB, parametrizes the model in the same way as the nimble model code below
+library(glmmTMB)
+crglmmTMB<-glmmTMB(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
+
 
 ## define the model
 GLMMcode <- nimbleCode({
   # the overall intercept
-  beta0 ~ dnorm(0,sd=10)
+  beta0 ~ dnorm(0, sd = 10)
   # random effect standard deviation associated with location, a uniform, might change this to be something else latter
-  sigmal_RE ~ dunif(0, 2)
-  # prior from off--nimble-list suggestion by Luca
-  # log(sigmal_RE) ~ dunif(log(0.0001), log(2))
+  sigmal_RE ~ dunif(0,10)
   # random effect standard deviation associated with year, a uniform, might change this to be something else latter
-  sigmay_RE ~ dunif(0, 2)
-  # prior from off--nimble-list suggestion by Luca
-  # log(sigmay_RE) ~ dunif(log(0.0001), log(2))
+  sigmay_RE ~ dunif(0, 10)
   # the gamma dispersion (or variance - see commented parametrization 1) parameter, a uniform, might change this to be something else latter
   #dispersion ~ dunif(0, 10)
   disp ~ dunif(0, 10)
+  ## sd ~ dhalfflat()
   #get year random effects
   for(yy in 1:nyears){
     #REy[yy] ~ dnorm(0, sd = sigmay_RE)
-    REy[yy] ~ dnorm(0, sd = 1)
+    REy[yy] ~ dnorm(0, sd = sigmay_RE)
   }  
   #get location random effects
   for(ll in 1:nlocs){
     #REl[ll] ~ dnorm(0, sd = sigmal_RE)
-    REl[ll] ~ dnorm(0, sd = 1)
+    REl[ll] ~ dnorm(0, sd = sigmal_RE)
   }  
   for (i in 1:N){
     #get the linear predictor, consider a log link function
-    #log(mean[i]) <- beta0 + REy[year[i]] + REl[loc[i]]
+    log(mean[i]) <- beta0 + REy[year[i]] + REl[loc[i]]
     # now Using decentered parametrization, a suggestion by Ben Augustine
-    log(mean[i]) <- beta0 + REy[year[i]]*sigmay_RE + REl[loc[i]]*sigmal_RE
+    # log(mean[i]) <- beta0 + REy[year[i]]*sigmay_RE + REl[loc[i]]*sigmal_RE
     #parametrization 1
     # crate[i] ~ dgamma(shape=(mean[i]^2)/disp,scale=disp/mean[i])
     #parametrization 2
-    crate[i] ~ dgamma(shape=1/disp,scale=mean[i]*disp)
+    crate[i] ~ dgamma(shape=1/disp, scale=mean[i]*disp)
   }
-  #a new year location mean
-  newyl<-beta0+
 })
 
 
@@ -112,8 +114,20 @@ inits <- list(beta0 = 0, sigmal_RE = 1, sigmay_RE = 1, disp = 1,REy = rep(0,nyea
 
 ## create the model object
 myGLMMModel <- nimbleModel(code = GLMMcode, constants = constants, data = data, 
-                       inits = inits, check = FALSE)
+                       inits = inits, check = FALSE, buildDerivs = TRUE) ## Add buildDerivs = TRUE for AD
+cmyGLMMModel <- compileNimble(myGLMMModel)
 
+## Build Laplace approximation in nimble
+glmmNimLaplace <- buildLaplace(myGLMMModel)
+cglmmNimLaplace <- compileNimble(glmmNimLaplace, project = myGLMMModel)
+MLEres <- cglmmNimLaplace$findMLE()
+summ_MLEres <- cglmmNimLaplace$summary(MLEres)
+
+## nimble and glmmTMB give close answers based on Laplace approximation
+summ_MLEres$params$estimates
+crglmmTMB
+
+#Consider full MCMC
 #things to monitor
 #tomon<-c("beta0","dispersion","sigmay_RE","sigmal_RE","crate","REy","REl")
 tomon<-c("beta0","disp","sigmay_RE","sigmal_RE","crate","REy","REl")
@@ -124,13 +138,17 @@ test<-nimbleMCMC(myGLMMModel,monitors=tomon,niter=50000,nburnin=10000,progressBa
 test$summary[c(20,133,134,135),]
 
 #the beta0 matches OK-ish with the intercept from glmer
-summary(crglmer)$coeff[1,1];test$summary[20,1]
+test$summary[20,1]
+summary(crglmer)$coeff[1,1]
+summary(crglmmTMB)$coefficients$cond[1]
+summ_MLEres$params$estimates[1]
 
 # Note that parametrized as 2 the dispersion parameter does not seem to bear a direct relation to the variance reported by glmer
 test$summary[133,1];
 summary(crglmer)$sigma^2
-summary(crglmer)$sigma
-sd(resid(crglmer,type='pear'))
+summary(crglmmTMB)$sigma^2 #Closer
+#summary(crglmer)$sigma
+#sd(resid(crglmer,type='pear'))
 
 # sqrt(sum(residuals(crglmer, type = "response")^2)/crglmer$df.residual)
 # #Dispersion parameter estimation 
@@ -140,10 +158,11 @@ sd(resid(crglmer,type='pear'))
 # #resid(model,type='pear')
 # sum(resid(crglmer,type='pear')^2)/crglmer$df.residual # estimation used in summary(model)
 
-
 #but the variances of the random effects are still off
 summary(crglmer)$varcor
-(test$summary[134:135,1])
+test$summary[134:135,1]
+summary(crglmmTMB)$varcor ## Closer
+summ_MLEres$params$estimates[2:3]
 
 par(mfrow=c(2,2))
 #trace plot intercept
@@ -188,19 +207,3 @@ abline(v=mean(test$samples[,135]),col="blue",lty=2)
 legend("topright",legend=c("0.025 posterior quantile","posterior median","posterior mean","0.975 posterior quantile","glmer estimate"),
 inset=0.05,lwd=2,col=c("green","orange","blue","green","red"),lty=c(2,2,2,2,1))
 
-#the 3 priors on the random effects sigma
-n<-100000
-par(mfrow=c(3,2))
-hist(runif(n,0,2),main="sigmal_RE) ~ dunif(0, 2)")
-hist(exp(runif(n,log(0.03), log(2))),main="log(sigmal_RE) ~ dunif(log(0.03), log(2))")
-hist(exp(runif(n,log(0.01), log(2))),main="log(sigmal_RE) ~ dunif(log(0.01), log(2))")
-hist(exp(runif(n,log(0.0001), log(2))),main="log(sigmal_RE) ~ dunif(log(0.0001), log(2))")
-par(mfrow=c(1,1))
-hist(exp(runif(n,log(0.000001), log(2))),main="log(sigmal_RE) ~ dunif(log(0.0001), log(2))")
-     
-
-# getting the overall estimate for a new year and location and respective CI's we are looking for
-# heuristically appealing but... is this kosher?
-nsamples<-nrow(test$samples)
-quantile(exp(test$samples[,20]+rnorm(nsamples,mean=0,sd=test$samples[,134])+rnorm(nsamples,mean=0,sd=test$samples[,135])),probs=c(0.025,0.5,0.975))
-mean(exp(test$samples[,20]+rnorm(nsamples,mean=0,sd=test$samples[,134])+rnorm(nsamples,mean=0,sd=test$samples[,135])))
