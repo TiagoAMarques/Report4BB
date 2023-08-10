@@ -1,9 +1,12 @@
 
 ---
 title: Code for producing results and figures of "Estimating sperm whale cue rates to inform passive acoustic density estimation via cue counting"
-author: Marques, T. A. and Marques, C. S. and  Gkikopoulou, K. C.
+author: Marques, T. A.
 date: "`r format(Sys.Date(), '%d %B %Y')`"
 output:
+  pdf_document:
+    toc: yes
+    toc_depth: 5
   html_document:
     code_folding: hide
     fig_caption: yes
@@ -15,13 +18,10 @@ output:
     toc: yes
     toc_depth: 5
     toc_float: yes
-  pdf_document:
-    toc: yes
-    toc_depth: 5
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE,cache=TRUE)
 library(R.matlab)
 library(knitr)
 library(readxl)
@@ -49,9 +49,11 @@ library(glmmTMB)
 
 # Introduction
 
-This document presents the code required to reproduce the figures and results in the manuscript "Estimating sperm whale cue rates to inform passive acoustic density estimation via cue counting", submitted to The Journal of the Acoustical Society of America, by **add all names here**.
+This document presents all the analysis that we've investigated while trying to estimate a cue rate, and in particular its precision, for a new location and year one might not have in the data. This ended up being a major endeavour, with lots of dead ends and open questions related to Gamma GLMMs and their implementation in `lme4::glmer` and in a Bayesian context.
 
-In this paper we report on estimates of cue rates for sperm whales at a selection of time and year combinations that were sampled, but the main interest is in estimating a mean cue rate, and corresponding precision, for a time and location that might not have been observed.
+This will also be a precursor, via considerable simplification, to the code required to reproduce the figures and results in the manuscript "Estimating sperm whale cue rates to inform passive acoustic density estimation via cue counting", submitted to The Journal of the Acoustical Society of America, by **add all names here**. In said paper we report on estimates of cue rates for sperm whales at a selection of time and year combinations that were sampled, but the main interest is in estimating a mean cue rate, and corresponding precision, for a time and location that might not have been observed.
+
+These analysis and data to make it fully reproducible are hosted at https://github.com/TiagoAMarques/Report4BB
 
 # About the data
 
@@ -449,7 +451,7 @@ est.lmean.crs<-means+desv.year+desv.loc
 est.mean.crs<-exp(est.lmean.crs)
 ```
 
-Note that the above does not sample the right distributions, because it ignores the potential correlation between the variance of the random effects. However, when I looked at said correlation via the Bayesian implementation, option 4 [below](#ilinkR), there was no evidence for it to be present, so this might not be too bad as an approximation.
+<a id="ilinkup"></a> Note that the above does not sample the right distributions, because it ignores the potential correlation between the variance of the random effects. However, when I looked at said correlation via the Bayesian implementation, option 4 [below](#ilinkR), there was no evidence for it to be present, so this might not be too bad as an approximation.
 
 To get a 95% confidence interval (CI) we can simply use the percentile method, leading to a mean estimate of `r round(exp(summary(crglmer)$coefficients[1,1]),2)` and 95% confidence intervals of `r round(quantile(est.mean.crs,0.025),2)`-`r round(quantile(est.mean.crs,0.975),2)`.
 
@@ -526,9 +528,7 @@ This result is quite interesting. As expected, if predicting for a new location-
 
 #### Option 3b
 
-This section is Work in Progress and might become in fact deprecated. 
-
-All the problems might have a common source and be down to an issue with either the `glmer` fit or to the way `simulate` works over a Gamma GLMM.
+This section is Work in Progress and might become in fact deprecated. All the problems might have a common source and be down to an issue with either the `glmer` fit or to the way `simulate` works over a Gamma GLMM. More about this issue is [below](#ilinkGLMMsim).
 
 ##### Notes on option 3
 
@@ -637,7 +637,7 @@ hist(tags$crate,main="Observed data",xlab="Cue rate (clicks/second)")
 
 ##### Implementing option 3b the simulate way
 
-The results below make no sense, and this might be due to the way `simulate` is working, in particular given that if we `simulate` from a model with year and location as random effects, the data looks consistent with the real data, but if we `simulate` from the random effects model, it does not.
+The results below make no sense, and this might be due to the way `simulate` is working, in particular given that if we `simulate` from a model with year and location as random effects, the data looks consistent with the real data, but if we `simulate` from the random effects model, it does not. Therefore, all the R code chucks in this section are with option `eval` det to `FALSE`.
 
 ```{r,boot3b,cache=TRUE,eval=FALSE}
 B<-9999
@@ -740,7 +740,7 @@ boot.tags$crate<-rgamma(ntags,shape=1/disp,scale=boot.tags$crate*disp)
 
 ```
 
-Note that in this procedure there are a considerable number of warnings regarding the `glmer` fit which render this approach somewhat unreliable.
+Note that in this procedure there are a considerable number of warnings regarding the `glmer` fit which render this approach somewhat unreliable. I have not really investigated this deeper because I am leaning towards a Bayesian implementation in the end.
 
 ```{r, plotall2.2}
 #standard average
@@ -770,14 +770,18 @@ Weirdly, we got a narrower 95% CI than for option 2, which makes no sense to me.
 
 ### Option 4
 
-Here I attempt to implement the GLMM model within a Bayesian context. I chose NIMBLE for implementation. Because we run into several issues with the results from the Bayesian implementation not adding up to the results from `lme4::glmer`, we compare the results of:
+Here I attempt to implement the GLMM model within a Bayesian context. I chose NIMBLE for implementation. Because we run into several issues with the results from the Bayesian implementation not adding up to the results from `lme4::glmer`, as noted in this question to the nimble users group
+
+https://groups.google.com/g/nimble-users/c/7UHlKdCC8B4
+
+we compare the results of:
 
 1. The `lme4::glmer`
 2. Nimble (MCMC)
 3. `glmmTMB`
-4. Nimble with Lapalce apporximation (MLE's)
+4. Nimble with Laplace approximation (MLE's) (see also https://r-nimble.org/html_manual/cha-AD.html)
 
-First we define the model object:
+First we define the Nimble model:
 
 ```{r,nimblemodel}
 ## define the model
@@ -852,27 +856,6 @@ myGLMMModel <- nimbleModel(code = GLMMcode, constants = constants, data = data,
 cmyGLMMModel <- compileNimble(myGLMMModel)
 ```
 
-Implement the Nimble-Laplace apporximation
-
-```{r,runLaplace}
-## Build Laplace approximation in nimble
-glmmNimLaplace <- buildLaplace(myGLMMModel)
-cglmmNimLaplace <- compileNimble(glmmNimLaplace, project = myGLMMModel)
-MLEres <- cglmmNimLaplace$findMLE()
-#get MLE's
-summ_MLEres <- cglmmNimLaplace$summary(MLEres)
-#output with proper names - via code in https://r-nimble.org/html_manual/cha-AD.html
-summaryLaplace(cglmmNimLaplace, MLEres)$params
-```
-
-Implement the glmmTMB approach
-
-```{r}
-# Use glmmTMB, parametrizes the model in the same way as the nimble model code below
-crglmmTMB<-glmmTMB(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
-```
-
-
 ```{r,parstomonitor}
 #things to monitor
 #tomon<-c("beta0","dispersion","sigmay_RE","sigmal_RE","crate","REy","REl")
@@ -881,10 +864,9 @@ tomon<-c("beta0","disp","sigmay_RE","sigmal_RE","crate","REy","REl")
 
 Then we run the code, considering 50000 iterations with a 10000 iterations burnin period, leaving 40000 iterations for inference.
 
-```{r,nimblerun}
+```{r,nimblerun,cache=TRUE}
 test<-nimbleMCMC(myGLMMModel,monitors=tomon,niter=50000,nburnin=10000,progressBar=TRUE,summary=TRUE)
 ```
-
 
 There were no apparent issues with convergence/mixing of MCMC chains
 
@@ -907,11 +889,29 @@ We can look at the main results, i.e. all top-level stochastic nodes of the mode
 test$summary[c(20,133,134,135),]
 ```
 
-However, the results are somewhat inconsistent with what we got in `glmer`. 
+However, the results are somewhat inconsistent with what we got in `glmer`. For additional comparisons, as noted above we also implemented a Nimble-Laplace approximation, which provides MLE's by integrating over the continous random effects distributios
 
-So for the intercept
+```{r,runLaplace}
+## Build Laplace approximation in nimble
+glmmNimLaplace <- buildLaplace(myGLMMModel)
+cglmmNimLaplace <- compileNimble(glmmNimLaplace, project = myGLMMModel)
+MLEres <- cglmmNimLaplace$findMLE()
+#get MLE's
+summ_MLEres <- cglmmNimLaplace$summary(MLEres)
+#output with proper names - via code in https://r-nimble.org/html_manual/cha-AD.html
+summaryLaplace(cglmmNimLaplace, MLEres)$params
+```
+
+and we also implement the same model using `glmmTMB` approach
 
 ```{r}
+# Use glmmTMB, parametrizes the model in the same way as the nimble model code below
+crglmmTMB<-glmmTMB(crate~(1|location)+(1|fyear),data=tags,family=Gamma(link="log"))
+```
+
+Comparing the 4 implementations, we have for the intercept an estimate of `r round(test$summary[20,1],4)`, `r round(summary(crglmer)$coeff[1,1],4)`, `r round(summary(crglmmTMB)$coefficients$cond[1],4)` and `r round(summ_MLEres$params$estimates[1],4)` for Nimble MCMC, `glmer`, `glmmTMB` and Nimble-Laplace MLE, respectively.
+
+```{r,eval=FALSE}
 #the beta0 matches OK-ish with the intercept from glmer
 test$summary[20,1]
 summary(crglmer)$coeff[1,1]
@@ -919,9 +919,9 @@ summary(crglmmTMB)$coefficients$cond[1]
 summ_MLEres$params$estimates[1]
 ```
 
-while for the dispersion parameter
+For the dispersion parameter we estimates of `r round(test$summary[133,1],4)`, `r round(summary(crglmer)$sigma^2,4)`, `r round(summary(crglmmTMB)$sigma^2,4)` and `r round(summ_MLEres$params$estimates[4],4)` for Nimble MCMC, `glmer`, `glmmTMB` and Nimble-Laplace MLE, respectively.
 
-```{r}
+```{r,eval=FALSE}
 # Note that parametrized as 2 the dispersion parameter does not seem to bear a direct relation to the variance reported by glmer
 #or... does it? see comment in glmmTMB output below
 test$summary[133,1];
@@ -935,16 +935,16 @@ summary(crglmmTMB)$sigma^2 #Closer
 summ_MLEres$params$estimates[4]
 ```
 
-and the random effects variances
+and for the random effects standard deviations, we have for location random effect estimates of `r round(test$summary[134,1],4)`, `r round(sqrt(as.numeric(summary(crglmer)$varcor))[1],4)`, `r round(sqrt(as.numeric(summary(crglmmTMB)$varcor$cond$location)),4)` and `r round(summ_MLEres$params$estimates[2],4)` for Nimble MCMC, `glmer`, `glmmTMB` and Nimble-Laplace MLE, respectively, while for the year random effect estimates of `r round(test$summary[135,1],4)`, `r round(sqrt(as.numeric(summary(crglmer)$varcor))[2],4)`, `r round(sqrt(as.numeric(summary(crglmmTMB)$varcor$cond$year)),4)` and `r round(summ_MLEres$params$estimates[3],4)` for Nimble MCMC, `glmer`, `glmmTMB` and Nimble-Laplace MLE, respectively.
 
-```{r}
+```{r,eval=FALSE}
 test$summary[134:135,1]
 summary(crglmer)$varcor
 summary(crglmmTMB)$varcor ## Closer
 summ_MLEres$params$estimates[2:3]
 ```
 
-When we compare the estimated values under `glmer`, `glmmTMB`, NIMBLE MLE's via Lapace apporximations and the posteriors from NIMBLE, things do not add up
+We can compare visually the estimated values under `glmer`, `glmmTMB`, NIMBLE MLE's via Laplace approximations and the posteriors from NIMBLE, and as noted, things do not add up
 
 ```{r}
 par(mfrow=c(2,2))
@@ -981,9 +981,9 @@ abline(v=summ_MLEres$params$estimates[3],col="green",lty=2)
 legend("topright",inset=0.05,legend=c("lme4::glmer","Nimble (MCMC)","glmmTMB","Nimble with Lapalce approximation (MLE's)"),col=c("red","orange","blue","green"),lty=c(1,2,2,2),lwd=c(1,1,2,1))
 ```
 
-In summary, the `lme4::glmer` was off for both the intercept and the dispersion parameter, consistent across the other 3 implementations, while for the random effect variances the Nimble MLE's (via Lapace approximation) and `glmmTMB` were virtually identical, with Nimble MCMC and `lme4::glmer` showing inconsistent results.
+In summary, the `lme4::glmer` was off for both the intercept and the dispersion parameter, which were in turn consistent across the other 3 implementations. For the random effect variances the Nimble MLE's (via Laplace approximation) and `glmmTMB` were virtually identical, with Nimble MCMC and `lme4::glmer` show inconsistent results.
 
-<a id="ilinkR"></a> Just out of curiosity, I took a peak at what was the correlation between the random effects standard deviations, and it looks like there is none, even if one tests it formally (P-value=`r round(cor.test(test$samples[,134],test$samples[,135])$p.value,3)`).
+<a id="ilinkR"></a> Just out of curiosity, I took a peak at what was the correlation between the random effects standard deviations, and it looks like there is none, even if one tests it formally (P-value=`r round(cor.test(test$samples[,134],test$samples[,135])$p.value,3)`). This links to a detail noted [above](#ilinkup).
 
 ```{r}
 plot(test$samples[,134],test$samples[,135],xlab="Location RE standard deviation",ylab="Year RE standard deviation")
@@ -1002,7 +1002,7 @@ myquants95CI.Bayes<-quantile(exp(test$samples[,20]+rnorm(nsamples,mean=0,sd=test
 
 ### Comparing Options
 
-Here we present the comparison of option 2, 3a and 4. 3b is not shown given the issues mentioned above. I think I prefer the BAyesian option, since thta seems to be the only one that avoids approximations which might be the cause for discrepancies.
+Here we present the comparison of option 2, 3a and 4. 3b is not shown given the issues mentioned above. I think I prefer the Bayesian option, since that seems to be the only one that avoids approximations which might be the cause for discrepancies.
 
 ```{r, compareoptions}
 #standard average
@@ -1054,6 +1054,10 @@ but it is unclear to me why:
 ### Question 2
 
 * <a id="ilink1"></a> (this is potentially a mute point/detail, but nonetheless I would like to know) what said Gamma would be, given via `glmer` we only get the mean value of the Gamma. Where in the output of `glmer` lies the estimate for the dispersion parameter of the corresponding Gamma (as happens to be reported by say a `glm` call with the argument `family=Gamma`)? I am working on the assumption that the reported variance is in fact the dispersion, but I have not received confirmation from BB.
+
+### Question 3
+
+<a id="ilinkGLMMsim"></a> Not that this is that relevant given I might go for the Bayesian implementation, since as noted by BB from the start, that is the approach which more naturally allows us to propagate the uncertainty to the quantity we want to estimate, which is a cue rate at a new time and location not observed in the data, but implementation of option 4b indicates that there are issues with `simulate` over Gamma GLMM model objects. It would be interesting to hear from BB what that might be about. This might link to another issue raised on github about `lme4` Gamma GLMMs (https://github.com/lme4/lme4/issues/643). 
 
 # Recycle bin
 
@@ -1108,4 +1112,8 @@ The point estimates and respective 95% confidence intervals using a standard ave
 
 # Aknowledgements
 
-We thank Ben Bolker for helpful advice via the answer to our question on "Stack Exchange" at https://stats.stackexchange.com/questions/616697/how-to-estimate-precision-on-a-prediction-for-a-glmm-for-an-unobserved-level-of/
+This might be an internal document, but I like to show my gratitude as much as possible. 
+
+We thank Ben Bolker for helpful advice via the answer to our question on "Stack Exchange" at https://stats.stackexchange.com/questions/616697/how-to-estimate-precision-on-a-prediction-for-a-glmm-for-an-unobserved-level-of/. Also thanks to Ben Augustine and Perry du Valpine over email, regarding the comparison between Bayesian inferences in Nimble and `lme4`. Luca (in private) and Wei Zhang (both in private and publicly) provided helpful advice following the question on the nimble user group at https://groups.google.com/g/nimble-users/c/7UHlKdCC8B4 about the same comparison. Len Thomas provided useful discussion and advice.
+
+All errors remaining are the sole responsability of the author.
