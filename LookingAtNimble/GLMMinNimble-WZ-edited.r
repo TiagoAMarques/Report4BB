@@ -16,7 +16,7 @@ library(tidyverse)
 # file created in Cue_Rates_For_Sperm_Whales.Rmd
 # and currently distributed in the parent folder of the github repos at 
 # https://github.com/TiagoAMarques/Report4BB
-load("data_4_article_clickrates_deep_dive.rda")
+load("../../data_4_article_clickrates_deep_dive.rda")
 #removing the tags for animals we know were exposed to sonar
 DDCs<-ddata1[ddata1$sonar!="sonar",]
 # Creating the data per tag
@@ -80,13 +80,13 @@ GLMMcode <- nimbleCode({
     log(mean[i]) <- beta0 + REy[year[i]] + REl[loc[i]]
     # now Using decentered parametrization, a suggestion by Ben Augustine
     # log(mean[i]) <- beta0 + REy[year[i]]*sigmay_RE + REl[loc[i]]*sigmal_RE
-    #parametrization 1
+    # parametrization 1 - now I know that to not be what is to be used
+    #left here for future reference
     # crate[i] ~ dgamma(shape=(mean[i]^2)/disp,scale=disp/mean[i])
     #parametrization 2
     crate[i] ~ dgamma(shape=1/disp, scale=mean[i]*disp)
   }
 })
-
 
 ## constants, data, and initial values
 
@@ -125,6 +125,8 @@ summ_MLEres <- cglmmNimLaplace$summary(MLEres)
 
 ## nimble and glmmTMB give close answers based on Laplace approximation
 summ_MLEres$params$estimates
+#output with proper names - via code in https://r-nimble.org/html_manual/cha-AD.html
+summaryLaplace(cglmmNimLaplace, MLEres)$params
 crglmmTMB
 
 #Consider full MCMC
@@ -144,23 +146,20 @@ summary(crglmmTMB)$coefficients$cond[1]
 summ_MLEres$params$estimates[1]
 
 # Note that parametrized as 2 the dispersion parameter does not seem to bear a direct relation to the variance reported by glmer
+#or... does it? see comment in glmmTMB output below
 test$summary[133,1];
 summary(crglmer)$sigma^2
+#in glmmTMB output it is noted
+#Dispersion estimate for Gamma family (sigma^2):
 summary(crglmmTMB)$sigma^2 #Closer
-#summary(crglmer)$sigma
-#sd(resid(crglmer,type='pear'))
-
-# sqrt(sum(residuals(crglmer, type = "response")^2)/crglmer$df.residual)
-# #Dispersion parameter estimation 
-# #1.Deviance method
-# (crglmer$deviance/crglmer$df.residual)  
-# #2.Pearson method
-# #resid(model,type='pear')
-# sum(resid(crglmer,type='pear')^2)/crglmer$df.residual # estimation used in summary(model)
+#another way
+#sd(resid(crglmer,type='pear'))^2
+#sd(resid(crglmer,type='response'))^2
+summ_MLEres$params$estimates[4]
 
 #but the variances of the random effects are still off
-summary(crglmer)$varcor
 test$summary[134:135,1]
+summary(crglmer)$varcor
 summary(crglmmTMB)$varcor ## Closer
 summ_MLEres$params$estimates[2:3]
 
@@ -173,7 +172,6 @@ plot(test$samples[,133],pch=".",ylab="dispersion")
 plot(test$samples[,134],pch=".",ylab="location random effect sigma")
 #trace plot location random effect standard deviation
 plot(test$samples[,135],pch=".",ylab="year random effect sigma")
-
 
 par(mfrow=c(2,2))
 #posterior plot intercept

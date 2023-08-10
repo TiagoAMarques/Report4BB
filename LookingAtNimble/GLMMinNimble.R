@@ -81,8 +81,6 @@ GLMMcode <- nimbleCode({
     #parametrization 2
     crate[i] ~ dgamma(shape=1/disp,scale=mean[i]*disp)
   }
-  #a new year location mean
-  newyl<-beta0+
 })
 
 
@@ -188,7 +186,8 @@ abline(v=mean(test$samples[,135]),col="blue",lty=2)
 legend("topright",legend=c("0.025 posterior quantile","posterior median","posterior mean","0.975 posterior quantile","glmer estimate"),
 inset=0.05,lwd=2,col=c("green","orange","blue","green","red"),lty=c(2,2,2,2,1))
 
-#the 3 priors on the random effects sigma
+
+#the 5 priors on the random effects sigma
 n<-100000
 par(mfrow=c(3,2))
 hist(runif(n,0,2),main="sigmal_RE) ~ dunif(0, 2)")
