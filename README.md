@@ -14,9 +14,9 @@ This led to another question in the nimble users google group:
 
 https://groups.google.com/g/nimble-users/c/7UHlKdCC8B4
 
-The result of that is inside folder LookingAtNimble, and I try to reconcile all I found along the way in file "SpermWhaleCueRatesSuppPub1.Rmd".
+The result of that is inside folder "LookingAtNimble", and I try to reconcile all I found along the way in file "SpermWhaleCueRatesSuppPub1.Rmd".
 
-Inside the folder "testing_lme4" is a single code file that if sourced illustrates lm4 bias in estimating the random effect variance. (note: the data file "data_4_article_clickrates_deep_dive.rda" is assumed to be in the same directory of the sourced code) 
+One of the conclusions of this was that lme4 seems to be having issues in the Gamma GLMM context that it was presented with. Inside the folder "testing_lme4" is a single code file that if sourced illustrates lm4 bias in estimating the random effect variance. (note: the data file "data_4_article_clickrates_deep_dive.rda" is assumed to be in the same directory of the sourced code). I have no idea how general this might be, but similar issues have been noted elsewhere (https://github.com/lme4/lme4/issues/643), so care when fitting Gamma GLMMs in lme4 is advised.
 
 Aknowledgements:
 
