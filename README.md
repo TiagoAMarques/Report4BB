@@ -16,6 +16,8 @@ https://groups.google.com/g/nimble-users/c/7UHlKdCC8B4
 
 The result of that is inside folder LookingAtNimble, and I try to reconcile all I found along the way in file "SpermWhaleCueRatesSuppPub1.Rmd".
 
+Inside the folder "testing_lme4" is a single code file that if sourced illustrates lm4 bias in estimating the random effect variance. (note: the data file "data_4_article_clickrates_deep_dive.rda" is assumed to be in the same directory of the sourced code) 
+
 Aknowledgements:
 
 Ben Bolker, Ben Augustine, Perry de Valpine, Luca, Wei Zhang and Len Thomas provided feedback which might be reflected in this material. All pending errors are solely mine. 
